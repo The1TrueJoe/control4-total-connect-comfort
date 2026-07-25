@@ -1,0 +1,201 @@
+<devicedata>
+	<copyright>Copyright 2026. All rights reserved.</copyright>
+	<manufacturer>Joseph Telaak</manufacturer>
+	<name>Total Connect Comfort Thermostat</name>
+	<model>Honeywell Total Connect Comfort</model>
+	<creator>Joseph Telaak</creator>
+	<created>07/24/2026 00:00</created>
+	<modified>07/25/2026 02:11</modified>
+	<version>1</version>
+	<control>lua_gen</control>
+	<controlmethod>ip</controlmethod>
+	<driver>DriverWorks</driver>
+	<minimum_os_version>2.10.5</minimum_os_version>
+	<composer_categories>
+		<category>HVAC</category>
+	</composer_categories>
+	<proxies qty="1">
+		<proxy proxybindingid="5001" name="Thermostat">thermostatV2</proxy>
+	</proxies>
+	<capabilities>
+		<can_heat>true</can_heat>
+		<can_cool>true</can_cool>
+		<can_do_auto>false</can_do_auto>
+		<has_single_setpoint>false</has_single_setpoint>
+		<can_calibrate>false</can_calibrate>
+		<can_lock_buttons>false</can_lock_buttons>
+		<can_change_scale>false</can_change_scale>
+		<setpoint_heat_min_f>40</setpoint_heat_min_f>
+		<setpoint_heat_min_c>4</setpoint_heat_min_c>
+		<setpoint_heat_max_f>90</setpoint_heat_max_f>
+		<setpoint_heat_max_c>32</setpoint_heat_max_c>
+		<setpoint_heat_resolution_f>1</setpoint_heat_resolution_f>
+		<setpoint_heat_resolution_c>1</setpoint_heat_resolution_c>
+		<setpoint_cool_min_f>40</setpoint_cool_min_f>
+		<setpoint_cool_min_c>4</setpoint_cool_min_c>
+		<setpoint_cool_max_f>90</setpoint_cool_max_f>
+		<setpoint_cool_max_c>32</setpoint_cool_max_c>
+		<setpoint_cool_resolution_f>1</setpoint_cool_resolution_f>
+		<setpoint_cool_resolution_c>1</setpoint_cool_resolution_c>
+		<setpoint_heatcool_deadband_f>3</setpoint_heatcool_deadband_f>
+		<setpoint_heatcool_deadband_c>2</setpoint_heatcool_deadband_c>
+		<hvac_modes>Off,Heat,Cool</hvac_modes>
+		<hvac_states>Off,Heating,Cooling</hvac_states>
+		<fan_modes>Auto,On,Circulate</fan_modes>
+		<fan_states>Off,On</fan_states>
+		<has_vacation_mode>false</has_vacation_mode>
+		<has_remote_sensor>false</has_remote_sensor>
+		<has_outdoor_temperature>false</has_outdoor_temperature>
+		<has_connection_status>true</has_connection_status>
+		<can_inc_dec_setpoints>false</can_inc_dec_setpoints>
+		<current_temperature_resolution_f>1</current_temperature_resolution_f>
+		<current_temperature_resolution_c>1</current_temperature_resolution_c>
+		<has_humidity>true</has_humidity>
+		<can_humidify>false</can_humidify>
+		<can_dehumidify>false</can_dehumidify>
+		<has_extras>false</has_extras>
+		<scheduling>false</scheduling>
+		<can_preset>false</can_preset>
+		<can_preset_schedule>false</can_preset_schedule>
+	</capabilities>
+	<connections>
+		<connection>
+			<id>5001</id>
+			<facing>6</facing>
+			<connectionname>Thermostat</connectionname>
+			<type>2</type>
+			<consumer>False</consumer>
+			<audiosource>False</audiosource>
+			<videosource>False</videosource>
+			<linelevel>False</linelevel>
+			<hidden>True</hidden>
+			<classes>
+				<class>
+					<classname>THERMOSTAT</classname>
+				</class>
+			</classes>
+		</connection>
+		<connection>
+			<id>7000</id>
+			<facing>6</facing>
+			<connectionname>Room Selection</connectionname>
+			<type>7</type>
+			<consumer>False</consumer>
+			<audiosource>False</audiosource>
+			<videosource>False</videosource>
+			<linelevel>False</linelevel>
+			<classes>
+				<class>
+					<autobind>True</autobind>
+					<classname>TEMPERATURE</classname>
+				</class>
+				<class>
+					<autobind>True</autobind>
+					<classname>TEMPERATURE_CONTROL</classname>
+				</class>
+			</classes>
+		</connection>
+	</connections>
+	<config>
+		<script file="driver.lua"/>
+		<documentation file="www/documentation.html"/>
+		<properties>
+			<property>
+				<name>Driver Version</name>
+				<default/>
+				<type>STRING</type>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Username</name>
+				<type>STRING</type>
+				<default/>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Password</name>
+				<type>STRING</type>
+				<default/>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Device ID</name>
+				<type>STRING</type>
+				<default/>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Temperature Scale</name>
+				<type>LIST</type>
+				<items>
+					<item>Fahrenheit</item>
+					<item>Celsius</item>
+				</items>
+				<default>Fahrenheit</default>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Poll Interval (seconds)</name>
+				<type>RANGED_INTEGER</type>
+				<minimum>60</minimum>
+				<maximum>3600</maximum>
+				<default>300</default>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Debug Mode</name>
+				<type>LIST</type>
+				<items>
+					<item>Off</item>
+					<item>On</item>
+				</items>
+				<default>Off</default>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Connection Status</name>
+				<default>Stopped</default>
+				<type>STRING</type>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Active Device ID</name>
+				<default/>
+				<type>STRING</type>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Last Update</name>
+				<default/>
+				<type>STRING</type>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Last Error</name>
+				<default/>
+				<type>STRING</type>
+				<readonly>true</readonly>
+			</property>
+		</properties>
+		<commands>
+			<command>
+				<name>Refresh Now</name>
+				<description>Poll Total Connect Comfort immediately on NAME</description>
+			</command>
+			<command>
+				<name>Log Out</name>
+				<description>Clear the current Total Connect Comfort session on NAME and log in again on next refresh</description>
+			</command>
+		</commands>
+		<actions>
+			<action>
+				<name>Refresh Now</name>
+				<command>REFRESH_NOW</command>
+			</action>
+			<action>
+				<name>Log Out</name>
+				<command>LOG_OUT</command>
+			</action>
+		</actions>
+	</config>
+</devicedata>

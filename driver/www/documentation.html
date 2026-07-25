@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Total Connect Comfort Thermostat</title></head>
+<body>
+<h1>Total Connect Comfort Thermostat</h1>
+<p>Control4 driver for Honeywell Total Connect Comfort thermostats, using the same
+unofficial portal API as <a href="https://github.com/csm10495/pyhtcc">pyhtcc</a>.</p>
+
+<h2>Setup</h2>
+<ol>
+	<li>Add the driver to a room in Composer Pro.</li>
+	<li>Set <b>Username</b> and <b>Password</b> to your mytotalconnectcomfort.com credentials.</li>
+	<li>Leave <b>Device ID</b> blank to auto-select the first thermostat on the account, or set it
+		explicitly (visible in the portal URL as <code>portal/Device/Control/&lt;id&gt;</code>) if the
+		account has more than one thermostat.</li>
+	<li>Set <b>Temperature Scale</b> to match the unit your TCC account displays in.</li>
+</ol>
+
+<h2>Notes</h2>
+<ul>
+	<li>Auto HVAC mode is not offered for setting: the portal API has no documented write value for it,
+		so only Off/Heat/Cool are exposed as settable modes. If the thermostat is physically in an Auto
+		state, it is reported as whichever of Heat/Cool is currently active.</li>
+	<li>Outdoor temperature is not reported; the portal only exposes it via scraping an HTML control
+		page, which this driver does not do.</li>
+	<li>Use the <b>Refresh Now</b> command to poll immediately, and <b>Log Out</b> to force a fresh
+		login on the next poll (useful after changing the account password).</li>
+</ul>
+
+<h2>Polling and rate limits</h2>
+<p>mytotalconnectcomfort.com has no official API, and there are recurring forum/GitHub reports
+(pyhtcc, homebridge-tcc, and others) of accounts or IPs getting rate-limited or temporarily banned
+from polling it too often. This driver is deliberately conservative about request volume:</p>
+<ul>
+	<li><b>Poll Interval (seconds)</b> defaults to 300 (5 minutes) and cannot be set below 60. A
+		thermostat's temperature and setpoints don't change fast enough to need tighter polling, and
+		<b>Refresh Now</b> is always available for an on-demand check.</li>
+	<li>Changing a setpoint or mode from the Control4 UI does not trigger an immediate poll. Instead
+		it schedules a refresh a few seconds later, and that timer is pushed back on every further
+		change — so dragging a setpoint slider costs one refresh request when you stop, not one per
+		step.</li>
+	<li>The session (login) is cached for the life of the driver and only refreshed if the portal
+		reports the session as expired, rather than logging in on every request.</li>
+	<li>If the portal rejects the Username/Password, or reports too many login attempts, the driver
+		stops trying to log in automatically — see below.</li>
+</ul>
+
+<h2>If Username/Password is wrong: auth lockout protection</h2>
+<p>The portal will temporarily lock an account out (with a cool-down timer) after enough failed
+login attempts. To make sure this driver can never be the cause of that, the very first time a
+login attempt comes back as a rejected credential or a "too many attempts" response, the driver
+stops making any further login requests entirely — the automatic poll timer will not retry, no
+matter how long it runs. <b>Connection Status</b> will show <code>Auth Blocked</code> and
+<b>Last Error</b> will explain why.</p>
+<p>To try again, either:</p>
+<ul>
+	<li>Correct <b>Username</b> or <b>Password</b> — changing either clears the block and makes one
+		fresh attempt, or</li>
+	<li>Run the <b>Refresh Now</b> command — this is the one action that deliberately clears the
+		block and retries, for when you believe the credentials are right and any portal cool-down
+		has passed.</li>
+</ul>
+<p>Don't repeatedly hit <b>Refresh Now</b> while unsure whether the credentials are correct — each
+click is a real login attempt against the portal, same as retyping a password on the website.</p>
+</body>
+</html>

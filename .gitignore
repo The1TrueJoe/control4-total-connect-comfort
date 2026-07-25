@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+
+# Packaged driver (build output)
+*.c4z
+
+# Generated Lua bundle (build output)
+driver/driver.lua
+
+# Local build tooling (cloned on demand by build.sh)
+/tools/
+
+# Python virtual environment
+venv/
+.venv/
