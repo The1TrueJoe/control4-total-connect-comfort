@@ -95,14 +95,23 @@ local function Login(afterLogin)
 		-- 2. The login itself.
 		DebugLog('Logging in as ' .. USERNAME)
 		HttpRequest('POST', BASE_URL .. '/portal/', headers, body, function(ok2, code2, text2, errMsg2, redirects2)
-			-- The lockout is a redirect to /portal/Error/TooManyAttempts. Its words in the page
-			-- are not proof: on a controller, the page after a login that worked (auth cookies
-			-- set, no lockout redirect) still matched them, and the driver blocked itself.
-			for _, location in ipairs(redirects2 or {}) do
-				if (string.find(string.lower(location), 'error/toomanyattempts', 1, true)) then
-					BlockAuth('Portal reported too many login attempts (account may be temporarily locked) — use Refresh Now once you are sure the wait has passed')
-					finish(false, AUTH_BLOCKED_REASON)
-					return
+			-- The lockout is the portal's direct answer to the POST: a redirect straight to
+			-- /portal/Error/TooManyAttempts. The same page also ends a good login, when the portal
+			-- loops on its RememberMe redirects (/portal/ several times) until its loop guard sends
+			-- it there (seen on a controller: the first hop had set the auth cookie). That case is
+			-- checked with a GET below, and only blocks if the session turns out not signed in.
+			local function isLockout(location)
+				return string.find(string.lower(location or ''), 'error/toomanyattempts', 1, true) ~= nil
+			end
+			local looped = false
+			for i, location in ipairs(redirects2 or {}) do
+				if (isLockout(location)) then
+					if (i == 1) then
+						BlockAuth('Portal reported too many login attempts (account may be temporarily locked) — use Refresh Now once you are sure the wait has passed')
+						finish(false, AUTH_BLOCKED_REASON)
+						return
+					end
+					looped = true
 				end
 			end
 			if (signedInFrom(redirects2)) then
@@ -129,6 +138,10 @@ local function Login(afterLogin)
 			HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function(_, _, _, _, redirects3)
 				if (signedInFrom(redirects3)) then
 					finish(true)
+				elseif (looped) then
+					-- Don't let the poll timer post again into a loop that may be a real lockout.
+					BlockAuth('Login ended at the portal\'s too-many-attempts page and the session is not signed in — use Refresh Now to try again')
+					finish(false, AUTH_BLOCKED_REASON)
 				else
 					finish(false, errMsg2 or 'Login did not land on a device or location page')
 				end
