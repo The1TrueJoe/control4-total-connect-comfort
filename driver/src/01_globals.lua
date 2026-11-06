@@ -73,6 +73,9 @@ local USERNAME = ''
 local PASSWORD = ''
 local DEVICE_ID = ''
 local LOCATION_ID = nil
+-- Signed in to the portal (its session cookies are valid). Not the same as knowing a location:
+-- a signed-in session can land straight on a device page.
+local SIGNED_IN = false
 local AUTH_BLOCKED = false
 local AUTH_BLOCKED_REASON = ''
 local SCALE = 'F'

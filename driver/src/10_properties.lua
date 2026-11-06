@@ -14,6 +14,7 @@ local function ApplyProperty(name)
 		if (newValue ~= USERNAME) then
 			USERNAME = newValue
 			LOCATION_ID = nil
+			SIGNED_IN = false
 			AUTH_BLOCKED = false
 			AUTH_BLOCKED_REASON = ''
 			LAST_SENT = {}
@@ -25,6 +26,7 @@ local function ApplyProperty(name)
 		if (newValue ~= PASSWORD) then
 			PASSWORD = newValue
 			LOCATION_ID = nil
+			SIGNED_IN = false
 			AUTH_BLOCKED = false
 			AUTH_BLOCKED_REASON = ''
 			LAST_SENT = {}

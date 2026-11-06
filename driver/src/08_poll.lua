@@ -6,9 +6,12 @@ local function PollStatus()
 	end
 
 	if (Trim(DEVICE_ID) == '') then
-		if (not LOCATION_ID) then
+		if (not SIGNED_IN or not LOCATION_ID) then
 			Login(function(success, err)
-				if (success) then
+				if (success and Trim(DEVICE_ID) ~= '') then
+					-- Signing in landed on the device page, which named the device.
+					PollStatus()
+				elseif (success) then
 					DiscoverDevice(function(ok, discErr)
 						if (ok) then
 							PollStatus()

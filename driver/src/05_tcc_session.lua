@@ -33,69 +33,96 @@ local function Login(afterLogin)
 	end
 
 	LOGIN_IN_FLIGHT = true
-	DebugLog('Logging in as ' .. USERNAME)
 
-	local body = 'UserName=' .. UrlEncode(USERNAME) .. '&Password=' .. UrlEncode(PASSWORD) ..
-		'&RememberMe=false&timeOffset=0'
-	local basicAuth = SafeCall(function()
-		return C4:Base64Encode(USERNAME .. ':' .. PASSWORD)
-	end)
-
-	local headers = {['Content-Type'] = 'application/x-www-form-urlencoded'}
-	if (basicAuth) then
-		headers['Authorization'] = 'Basic ' .. basicAuth
-	end
-
-	-- Load the login page first, as a browser (and pyhtcc) does: it sets the session and
-	-- cookie-check cookies the login POST relies on. Posting cold redirected in a loop
-	-- ("Error 47: Number of redirects hit maximum amount") on a controller.
-	HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function()
-	HttpRequest('POST', BASE_URL .. '/portal/', headers, body, function(ok, code, text, errMsg, redirects)
+	local function finish(success, err)
 		LOGIN_IN_FLIGHT = false
+		SIGNED_IN = success
 		local pending = PENDING_AFTER_LOGIN
 		PENDING_AFTER_LOGIN = {}
-
-		-- The lockout is a redirect to /portal/Error/TooManyAttempts. Its words in the page are
-		-- not proof: on a controller, the page after a login that worked (auth cookies set, no
-		-- lockout redirect) still matched them, and the driver blocked itself.
-		local lockedOut = false
-		for _, location in ipairs(redirects or {}) do
-			if (string.find(string.lower(location), 'error/toomanyattempts', 1, true)) then
-				lockedOut = true
-			end
-		end
-
-		local success, err = false, nil
-		local lower = string.lower(text or '')
-		local locationId = ok and ExtractLocationId(text)
-		if (not ok) then
-			err = errMsg or 'Login request failed'
-		elseif (lockedOut) then
-			BlockAuth('Portal reported too many login attempts (account may be temporarily locked) — use Refresh Now once you are sure the wait has passed')
-			err = AUTH_BLOCKED_REASON
-		elseif (locationId) then
-			LOCATION_ID = locationId
-			success = true
-		elseif (string.find(lower, 'email or password provided is incorrect', 1, true) or
-				string.find(lower, 'email address is not in the correct format', 1, true)) then
-			BlockAuth('Username or password was rejected — fix Username/Password to retry')
-			err = AUTH_BLOCKED_REASON
-		else
-			err = 'Login did not return a location id (unexpected response)'
-		end
-		DebugLog('login result: ' .. (success and ('signed in, location ' .. tostring(LOCATION_ID)) or tostring(err)))
-
+		DebugLog('login result: ' .. (success and ('signed in (device ' .. tostring(DEVICE_ID) ..
+			', location ' .. tostring(LOCATION_ID) .. ')') or tostring(err)))
 		if (success) then
 			SetServiceStatus('Connected')
 		elseif (not AUTH_BLOCKED) then
 			SetServiceStatus('Auth Failed', err)
 		end
-
 		afterLogin(success, err)
 		for _, cb in ipairs(pending) do
 			SafeCall(function() cb(success, err) end)
 		end
-	end)
+	end
+
+	-- A signed-in session is redirected from /portal/ to a device or location page; take the
+	-- ids from there (a blank Device ID is filled from the device page).
+	local function signedInFrom(redirects)
+		for _, location in ipairs(redirects or {}) do
+			local device = string.match(location, 'Device/Control/(%d+)')
+			local locationId = string.match(location, 'portal/(%d+)/')
+			if (device or locationId) then
+				if (device and Trim(DEVICE_ID) == '') then
+					DEVICE_ID = device
+					UpdateDriverProperty('Active Device ID', DEVICE_ID)
+				end
+				if (locationId) then LOCATION_ID = tonumber(locationId) end
+				return true
+			end
+		end
+		return false
+	end
+
+	local body = 'UserName=' .. UrlEncode(USERNAME) .. '&Password=' .. UrlEncode(PASSWORD) ..
+		'&RememberMe=false&timeOffset=0'
+	-- No Basic auth header: the form carries the login, and Director re-sent the header on
+	-- every redirect of the post-login loop.
+	local headers = {['Content-Type'] = 'application/x-www-form-urlencoded'}
+
+	-- 1. Load /portal/ as a browser does: it sets the session and cookie-check cookies the
+	-- login needs, and if the session is still signed in it redirects to a device page and
+	-- there is nothing to log in to (seen on a controller after a "failed" login).
+	HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function(ok, code, text, errMsg, redirects)
+		if (ok and signedInFrom(redirects)) then
+			finish(true)
+			return
+		end
+
+		-- 2. The login itself.
+		DebugLog('Logging in as ' .. USERNAME)
+		HttpRequest('POST', BASE_URL .. '/portal/', headers, body, function(ok2, code2, text2, errMsg2, redirects2)
+			-- The lockout is a redirect to /portal/Error/TooManyAttempts. Its words in the page
+			-- are not proof: on a controller, the page after a login that worked (auth cookies
+			-- set, no lockout redirect) still matched them, and the driver blocked itself.
+			for _, location in ipairs(redirects2 or {}) do
+				if (string.find(string.lower(location), 'error/toomanyattempts', 1, true)) then
+					BlockAuth('Portal reported too many login attempts (account may be temporarily locked) — use Refresh Now once you are sure the wait has passed')
+					finish(false, AUTH_BLOCKED_REASON)
+					return
+				end
+			end
+			if (ok2) then
+				local locationId = ExtractLocationId(text2)
+				if (locationId or signedInFrom(redirects2)) then
+					LOCATION_ID = locationId or LOCATION_ID
+					finish(true)
+					return
+				end
+				local lower = string.lower(text2 or '')
+				if (string.find(lower, 'email or password provided is incorrect', 1, true) or
+						string.find(lower, 'email address is not in the correct format', 1, true)) then
+					BlockAuth('Username or password was rejected — fix Username/Password to retry')
+					finish(false, AUTH_BLOCKED_REASON)
+					return
+				end
+			end
+			-- 3. After a good login the portal can loop on its RememberMe redirects until the
+			-- client gives up (Error 47), though the session is signed in by then. Look again.
+			HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function(ok3, _, _, _, redirects3)
+				if (ok3 and signedInFrom(redirects3)) then
+					finish(true)
+				else
+					finish(false, errMsg2 or 'Login did not land on a device or location page')
+				end
+			end)
+		end)
 	end)
 end
 
@@ -123,6 +150,7 @@ local function TccRequest(method, path, jsonBody, onResult, isRetry)
 			local looksUnauthorized = (code == 401) or string.find(text or '', 'Unauthorized', 1, true)
 			if (looksUnauthorized and not isRetry) then
 				DebugLog('Session expired, logging in again before retrying ' .. path)
+				SIGNED_IN = false
 				Login(function(success, err)
 					if (not success) then
 						onResult(false, nil, err)
@@ -148,7 +176,7 @@ local function TccRequest(method, path, jsonBody, onResult, isRetry)
 		end)
 	end
 
-	if (not LOCATION_ID) then
+	if (not SIGNED_IN) then
 		Login(function(success, err)
 			if (not success) then
 				onResult(false, nil, err)
@@ -163,6 +191,7 @@ end
 
 local function LogOut()
 	LOCATION_ID = nil
+	SIGNED_IN = false
 	LOGIN_IN_FLIGHT = false
 	PENDING_AFTER_LOGIN = {}
 	AUTH_BLOCKED = false
