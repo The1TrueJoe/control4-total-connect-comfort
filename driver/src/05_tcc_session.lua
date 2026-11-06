@@ -72,9 +72,15 @@ local function Login(afterLogin)
 
 	local body = 'UserName=' .. UrlEncode(USERNAME) .. '&Password=' .. UrlEncode(PASSWORD) ..
 		'&RememberMe=false&timeOffset=0'
-	-- No Basic auth header: the form carries the login, and Director re-sent the header on
-	-- every redirect of the post-login loop.
+	-- The portal wants Basic auth alongside the form: without it the same login came back as
+	-- a plain 200 with no auth cookie (rejected); with it, 302 and signed in (on a controller).
 	local headers = {['Content-Type'] = 'application/x-www-form-urlencoded'}
+	local basicAuth = SafeCall(function()
+		return C4:Base64Encode(USERNAME .. ':' .. PASSWORD)
+	end)
+	if (basicAuth) then
+		headers['Authorization'] = 'Basic ' .. basicAuth
+	end
 
 	-- 1. Load /portal/ as a browser does: it sets the session and cookie-check cookies the
 	-- login needs, and if the session is still signed in it redirects to a device page and
