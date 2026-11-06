@@ -13,7 +13,9 @@ local function HttpRequest(method, url, headers, body, callback)
 	transfer:SetOptions({
 		cookies_enable = true,
 		fail_on_error = false,
-		timeout = 20,
+		-- The portal sometimes takes 8-15 s to answer a login (seen 2026-11-05); 20 s
+		-- timed out a real sign-in from a controller.
+		timeout = 45,
 		connect_timeout = 10,
 	})
 
