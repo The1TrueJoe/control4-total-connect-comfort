@@ -8,12 +8,15 @@ end
 
 -- Only sends a notify when the value actually changed since the last poll,
 -- so we don't spam Director (and the UI) every poll interval.
-local function NotifyIfChanged(key, value, command, paramName)
+-- `extra` adds fixed params (a temperature's SCALE).
+local function NotifyIfChanged(key, value, command, paramName, extra)
 	if (LAST_SENT[key] == value) then
 		return
 	end
 	LAST_SENT[key] = value
-	SendNotify(command, {[paramName] = tostring(value)})
+	local params = {[paramName] = tostring(value)}
+	for k, v in pairs(extra or {}) do params[k] = v end
+	SendNotify(command, params)
 end
 
 local function ApplyStatus(data)
@@ -40,14 +43,21 @@ local function ApplyStatus(data)
 	local fanMode = fanModeVal and FAN_MODE_FROM_VALUE[fanModeVal]
 	local fanState = fanRunning and 'On' or 'Off'
 
+	DebugLog(string.format('status: temp %s, heat %s, cool %s, humidity %s, switch %s, units %s',
+		tostring(curTemp), tostring(heatSetpoint), tostring(coolSetpoint), tostring(humidity),
+		tostring(switchPos), tostring(ui.DisplayedUnits)))
+
+	-- Temperatures carry their scale: without SCALE the proxy left TEMPERATURE at -40 and both
+	-- setpoints at the 39 F minimum while every other value arrived (seen on a controller).
+	local scale = {SCALE = SCALE}
 	if (curTemp) then
-		NotifyIfChanged('temp', curTemp, 'TEMPERATURE_CHANGED', 'TEMPERATURE')
+		NotifyIfChanged('temp', curTemp, 'TEMPERATURE_CHANGED', 'TEMPERATURE', scale)
 	end
 	if (heatSetpoint) then
-		NotifyIfChanged('heat_setpoint', heatSetpoint, 'HEAT_SETPOINT_CHANGED', 'SETPOINT')
+		NotifyIfChanged('heat_setpoint', heatSetpoint, 'HEAT_SETPOINT_CHANGED', 'SETPOINT', scale)
 	end
 	if (coolSetpoint) then
-		NotifyIfChanged('cool_setpoint', coolSetpoint, 'COOL_SETPOINT_CHANGED', 'SETPOINT')
+		NotifyIfChanged('cool_setpoint', coolSetpoint, 'COOL_SETPOINT_CHANGED', 'SETPOINT', scale)
 	end
 	if (humidity) then
 		NotifyIfChanged('humidity', humidity, 'HUMIDITY_CHANGED', 'HUMIDITY')
