@@ -53,18 +53,20 @@ local function HttpRequest(method, url, headers, body, callback)
 		if (DEBUGPRINT) then
 			LogTransfer(method, url, responses, errCode, errMsg)
 		end
-		if (errCode ~= 0) then
-			SafeCall(function() callback(false, 0, '', errMsg or ('transfer error ' .. tostring(errCode))) end)
-			return
-		end
-		local resp = responses[#responses] or {}
 		-- Every redirect the transfer followed, so callers can tell where the portal sent them.
+		-- Kept on failure too: the portal's device page can take longer than the timeout to
+		-- load, after the redirect to it has already shown the session is signed in.
 		local redirects = {}
-		for _, r in ipairs(responses) do
+		for _, r in ipairs(responses or {}) do
 			local h = r.headers or {}
 			local location = h.Location or h.location
 			if (location) then redirects[#redirects + 1] = tostring(location) end
 		end
+		if (errCode ~= 0) then
+			SafeCall(function() callback(false, 0, '', errMsg or ('transfer error ' .. tostring(errCode)), redirects) end)
+			return
+		end
+		local resp = responses[#responses] or {}
 		SafeCall(function() callback(true, resp.code or 0, resp.body or '', nil, redirects) end)
 	end)
 

@@ -85,8 +85,9 @@ local function Login(afterLogin)
 	-- 1. Load /portal/ as a browser does: it sets the session and cookie-check cookies the
 	-- login needs, and if the session is still signed in it redirects to a device page and
 	-- there is nothing to log in to (seen on a controller after a "failed" login).
+	-- A redirect to a device page counts even when loading that page then times out.
 	HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function(ok, code, text, errMsg, redirects)
-		if (ok and signedInFrom(redirects)) then
+		if (signedInFrom(redirects)) then
 			finish(true)
 			return
 		end
@@ -104,9 +105,13 @@ local function Login(afterLogin)
 					return
 				end
 			end
+			if (signedInFrom(redirects2)) then
+				finish(true)
+				return
+			end
 			if (ok2) then
 				local locationId = ExtractLocationId(text2)
-				if (locationId or signedInFrom(redirects2)) then
+				if (locationId) then
 					LOCATION_ID = locationId or LOCATION_ID
 					finish(true)
 					return
@@ -121,8 +126,8 @@ local function Login(afterLogin)
 			end
 			-- 3. After a good login the portal can loop on its RememberMe redirects until the
 			-- client gives up (Error 47), though the session is signed in by then. Look again.
-			HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function(ok3, _, _, _, redirects3)
-				if (ok3 and signedInFrom(redirects3)) then
+			HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function(_, _, _, _, redirects3)
+				if (signedInFrom(redirects3)) then
 					finish(true)
 				else
 					finish(false, errMsg2 or 'Login did not land on a device or location page')
