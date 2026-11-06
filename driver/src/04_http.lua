@@ -30,7 +30,7 @@ local function LogTransfer(method, url, responses, errCode, errMsg)
 	end
 end
 
--- Fires callback(ok, code, bodyText, errMsg). ok is true only for a
+-- Fires callback(ok, code, bodyText, errMsg, redirects). ok is true only for a
 -- transport-level success (errCode == 0); callers still need to check code
 -- for HTTP-level failures (401, 500, etc).
 local function HttpRequest(method, url, headers, body, callback)
@@ -58,7 +58,14 @@ local function HttpRequest(method, url, headers, body, callback)
 			return
 		end
 		local resp = responses[#responses] or {}
-		SafeCall(function() callback(true, resp.code or 0, resp.body or '', nil) end)
+		-- Every redirect the transfer followed, so callers can tell where the portal sent them.
+		local redirects = {}
+		for _, r in ipairs(responses) do
+			local h = r.headers or {}
+			local location = h.Location or h.location
+			if (location) then redirects[#redirects + 1] = tostring(location) end
+		end
+		SafeCall(function() callback(true, resp.code or 0, resp.body or '', nil, redirects) end)
 	end)
 
 	method = string.upper(method)

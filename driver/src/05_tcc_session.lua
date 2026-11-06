@@ -50,33 +50,40 @@ local function Login(afterLogin)
 	-- cookie-check cookies the login POST relies on. Posting cold redirected in a loop
 	-- ("Error 47: Number of redirects hit maximum amount") on a controller.
 	HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function()
-	HttpRequest('POST', BASE_URL .. '/portal/', headers, body, function(ok, code, text, errMsg)
+	HttpRequest('POST', BASE_URL .. '/portal/', headers, body, function(ok, code, text, errMsg, redirects)
 		LOGIN_IN_FLIGHT = false
 		local pending = PENDING_AFTER_LOGIN
 		PENDING_AFTER_LOGIN = {}
 
+		-- The lockout is a redirect to /portal/Error/TooManyAttempts. Its words in the page are
+		-- not proof: on a controller, the page after a login that worked (auth cookies set, no
+		-- lockout redirect) still matched them, and the driver blocked itself.
+		local lockedOut = false
+		for _, location in ipairs(redirects or {}) do
+			if (string.find(string.lower(location), 'error/toomanyattempts', 1, true)) then
+				lockedOut = true
+			end
+		end
+
 		local success, err = false, nil
 		local lower = string.lower(text or '')
+		local locationId = ok and ExtractLocationId(text)
 		if (not ok) then
 			err = errMsg or 'Login request failed'
+		elseif (lockedOut) then
+			BlockAuth('Portal reported too many login attempts (account may be temporarily locked) — use Refresh Now once you are sure the wait has passed')
+			err = AUTH_BLOCKED_REASON
+		elseif (locationId) then
+			LOCATION_ID = locationId
+			success = true
 		elseif (string.find(lower, 'email or password provided is incorrect', 1, true) or
 				string.find(lower, 'email address is not in the correct format', 1, true)) then
 			BlockAuth('Username or password was rejected — fix Username/Password to retry')
 			err = AUTH_BLOCKED_REASON
-		elseif (string.find(lower, 'toomanyattempts', 1, true) or
-				string.find(lower, 'too many attempts', 1, true) or
-				string.find(lower, 'temporarily locked', 1, true)) then
-			BlockAuth('Portal reported too many login attempts (account may be temporarily locked) — use Refresh Now once you are sure the wait has passed')
-			err = AUTH_BLOCKED_REASON
 		else
-			local locationId = ExtractLocationId(text)
-			if (not locationId) then
-				err = 'Login did not return a location id (unexpected response)'
-			else
-				LOCATION_ID = locationId
-				success = true
-			end
+			err = 'Login did not return a location id (unexpected response)'
 		end
+		DebugLog('login result: ' .. (success and ('signed in, location ' .. tostring(LOCATION_ID)) or tostring(err)))
 
 		if (success) then
 			SetServiceStatus('Connected')
