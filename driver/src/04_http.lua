@@ -68,6 +68,15 @@ local function HttpRequest(method, url, headers, body, callback)
 		SafeCall(function() callback(true, resp.code or 0, resp.body or '', nil, redirects) end)
 	end)
 
+	-- Director's C4:url sends no User-Agent at all (checked against httpbin.org/headers on a
+	-- controller). The portal is ASP.NET, which judges cookie support partly by User-Agent; the
+	-- login looped on RememberMe redirects without one. Name ourselves honestly.
+	headers = headers or {}
+	if (headers['User-Agent'] == nil) then
+		headers['User-Agent'] = 'Control4-TotalConnectComfort/' .. tostring(DRIVER_VERSION) ..
+			' (+https://github.com/The1TrueJoe/control4-total-connect-comfort)'
+	end
+
 	method = string.upper(method)
 	if (method == 'GET') then
 		transfer:Get(url, headers or {})
