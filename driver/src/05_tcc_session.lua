@@ -35,7 +35,8 @@ local function Login(afterLogin)
 	LOGIN_IN_FLIGHT = true
 	DebugLog('Logging in as ' .. USERNAME)
 
-	local body = 'UserName=' .. UrlEncode(USERNAME) .. '&Password=' .. UrlEncode(PASSWORD)
+	local body = 'UserName=' .. UrlEncode(USERNAME) .. '&Password=' .. UrlEncode(PASSWORD) ..
+		'&RememberMe=false&timeOffset=0'
 	local basicAuth = SafeCall(function()
 		return C4:Base64Encode(USERNAME .. ':' .. PASSWORD)
 	end)
@@ -45,7 +46,11 @@ local function Login(afterLogin)
 		headers['Authorization'] = 'Basic ' .. basicAuth
 	end
 
-	HttpRequest('POST', BASE_URL .. '/portal', headers, body, function(ok, code, text, errMsg)
+	-- Load the login page first, as a browser (and pyhtcc) does: it sets the session and
+	-- cookie-check cookies the login POST relies on. Posting cold redirected in a loop
+	-- ("Error 47: Number of redirects hit maximum amount") on a controller.
+	HttpRequest('GET', BASE_URL .. '/portal/', {}, nil, function()
+	HttpRequest('POST', BASE_URL .. '/portal/', headers, body, function(ok, code, text, errMsg)
 		LOGIN_IN_FLIGHT = false
 		local pending = PENDING_AFTER_LOGIN
 		PENDING_AFTER_LOGIN = {}
@@ -83,6 +88,7 @@ local function Login(afterLogin)
 		for _, cb in ipairs(pending) do
 			SafeCall(function() cb(success, err) end)
 		end
+	end)
 	end)
 end
 

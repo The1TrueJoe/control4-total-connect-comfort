@@ -1,5 +1,35 @@
 -- Thin wrapper around C4:url() for outbound HTTPS calls to the TCC portal.
 
+-- With Debug Mode on: one line per response in the transfer (each redirect hop), with the
+-- status, where it redirected, and the NAMES of the cookies it set (never their values),
+-- then the cookie names Director's jar holds for the portal. Enough to see a login loop.
+local function LogTransfer(method, url, responses, errCode, errMsg)
+	DebugLog(string.format('%s %s -> %s', method, url, errCode == 0 and 'done' or ('error ' .. tostring(errCode) .. ' ' .. tostring(errMsg))))
+	for i, r in ipairs(responses or {}) do
+		local h = r.headers or {}
+		local location = h.Location or h.location or ''
+		local cookies = {}
+		local setCookie = h['Set-Cookie'] or h['set-cookie']
+		for _, c in ipairs(type(setCookie) == 'table' and setCookie or { setCookie }) do
+			local name = string.match(tostring(c or ''), '^%s*([^=;]+)=')
+			if (name) then cookies[#cookies + 1] = name end
+		end
+		DebugLog(string.format('  hop %d: HTTP %s%s%s', i, tostring(r.code),
+			location ~= '' and (' -> ' .. location) or '',
+			#cookies > 0 and (' sets ' .. table.concat(cookies, ',')) or ''))
+	end
+	local ok, jar = pcall(function() return C4:urlGetCookies() end)
+	if (ok and type(jar) == 'table') then
+		for domain, tab in pairs(jar) do
+			if (string.find(tostring(domain), 'totalconnect', 1, true)) then
+				local names = {}
+				for name, _ in pairs(tab) do names[#names + 1] = name end
+				DebugLog('  cookie jar ' .. tostring(domain) .. ': ' .. table.concat(names, ','))
+			end
+		end
+	end
+end
+
 -- Fires callback(ok, code, bodyText, errMsg). ok is true only for a
 -- transport-level success (errCode == 0); callers still need to check code
 -- for HTTP-level failures (401, 500, etc).
@@ -20,6 +50,9 @@ local function HttpRequest(method, url, headers, body, callback)
 	})
 
 	transfer:OnDone(function(_, responses, errCode, errMsg)
+		if (DEBUGPRINT) then
+			LogTransfer(method, url, responses, errCode, errMsg)
+		end
 		if (errCode ~= 0) then
 			SafeCall(function() callback(false, 0, '', errMsg or ('transfer error ' .. tostring(errCode))) end)
 			return
